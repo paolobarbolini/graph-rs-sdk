@@ -72,7 +72,7 @@ http = { version = "1", default-features = false }
 
 [dev-dependencies]
 bytes = { version = "1.4.0" }
-futures = "0.3"
+futures-util = { version = "0.3", default-features = false }
 http = { workspace = true }
 tokio = { version = "1.27.0", features = ["full"] }
 warp = { version = "0.3.5" }
