@@ -15,23 +15,25 @@ pub(crate) struct Attempts(pub usize);
 impl tower::retry::Policy<Request, Response, Box<(dyn std::error::Error + Send + Sync + 'static)>>
     for Attempts
 {
-    type Future = future::Ready<Self>;
+    type Future = future::Ready<()>;
 
     fn retry(
-        &self,
-        _req: &Request,
-        result: Result<&Response, &Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+        &mut self,
+        _req: &mut Request,
+        result: &mut Result<Response, Box<(dyn std::error::Error + Send + Sync + 'static)>>,
     ) -> Option<Self::Future> {
         match result {
             Ok(response) => {
                 if response.status().is_server_error() && self.0 > 0 {
-                    return Some(future::ready(Attempts(self.0 - 1)));
+                    self.0 -= 1;
+                    return Some(future::ready(()));
                 }
                 None
             }
             Err(_) => {
                 if self.0 > 0 {
-                    Some(future::ready(Attempts(self.0 - 1)))
+                    self.0 -= 1;
+                    Some(future::ready(()))
                 } else {
                     None
                 }
@@ -39,7 +41,7 @@ impl tower::retry::Policy<Request, Response, Box<(dyn std::error::Error + Send +
         }
     }
 
-    fn clone_request(&self, req: &Request) -> Option<Request> {
+    fn clone_request(&mut self, req: &Request) -> Option<Request> {
         req.try_clone()
     }
 }
@@ -50,12 +52,12 @@ pub(crate) struct WaitFor();
 impl tower::retry::Policy<Request, Response, Box<(dyn std::error::Error + Send + Sync + 'static)>>
     for WaitFor
 {
-    type Future = future::Either<future::Ready<Self>, WaitBeforeRetry<Self>>;
+    type Future = future::Ready<()>;
 
     fn retry(
-        &self,
-        _req: &Request,
-        result: Result<&Response, &Box<(dyn std::error::Error + Send + Sync + 'static)>>,
+        &mut self,
+        _req: &mut Request,
+        result: &mut Result<Response, Box<(dyn std::error::Error + Send + Sync + 'static)>>,
     ) -> Option<Self::Future> {
         match result {
             Ok(response) => match response.status() {
@@ -70,7 +72,7 @@ impl tower::retry::Policy<Request, Response, Box<(dyn std::error::Error + Send +
                                     Some(WaitFor()),
                                     Duration::from_secs(retry_after),
                                 );
-                                Some(future::Either::Right(sleep))
+                                Some(future::ready(()))
                             }
                             Err(_) => None,
                         },
@@ -84,7 +86,7 @@ impl tower::retry::Policy<Request, Response, Box<(dyn std::error::Error + Send +
         }
     }
 
-    fn clone_request(&self, req: &Request) -> Option<Request> {
+    fn clone_request(&mut self, req: &Request) -> Option<Request> {
         req.try_clone()
     }
 }
